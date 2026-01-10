@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Analisis & Koreksi Esai AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- PDF.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <!-- DOCX Generator & FileSaver -->
+    <script src="https://unpkg.com/docx@7.3.0/build/index.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <!-- Markdown Parser (Marked) for Analysis Output -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        // Set worker source for PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js`;
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .card {
+            background-color: white;
+            border-radius: 0.75rem;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .input-field {
+            width: 100%;
+            border-radius: 0.5rem;
+            border: 1px solid #d1d5db;
+            padding: 0.75rem;
+            font-size: 0.875rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .input-field:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe; }
+        .file-input-label {
+            cursor: pointer; padding: 0.5rem 1rem; border: 1px solid #d1d5db;
+            border-radius: 0.5rem; background-color: #f9fafb; transition: background-color 0.2s;
+        }
+        .file-input-label:hover { background-color: #f3f4f6; }
+        .btn {
+            padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 600;
+            cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+            transition: all 0.2s ease;
+        }
+        .btn-primary { background-color: #2563eb; color: white; }
+        .btn-primary:hover { background-color: #1d4ed8; }
+        .btn-secondary { background-color: #e5e7eb; color: #374151; }
+        .btn-secondary:hover { background-color: #d1d5db; }
+        .btn-success { background-color: #16a34a; color: white; }
+        .btn-success:hover { background-color: #15803d; }
+        .btn-warning { background-color: #f59e0b; color: white; }
+        .btn-warning:hover { background-color: #d97706; }
+        .btn-danger { background-color: #ef4444; color: white; }
+        .btn-danger:hover { background-color: #dc2626; }
+        
+        /* Markdown Styles */
+        .markdown-body h1, .markdown-body h2, .markdown-body h3 { font-weight: bold; margin-top: 1em; margin-bottom: 0.5em; }
+        .markdown-body ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1em; }
+        .markdown-body p { margin-bottom: 0.8em; }
+        .markdown-body strong { color: #1f2937; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Aplikasi Analisis & Koreksi Esai AI</h1>
+            <p class="mt-2 text-md text-gray-600">Unggah detail soal dan jawaban murid. Data akan disimpan otomatis untuk analisis kelas.</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <!-- Kolom Input -->
+            <div class="flex flex-col gap-6">
+                <div class="card p-6 bg-blue-50 border-blue-200">
+                    <h2 class="text-xl font-bold mb-4 text-blue-800">1. Identitas Ujian (Wajib)</h2>
+                    <p class="text-sm text-gray-600 mb-3">Data murid akan dikelompokkan berdasarkan judul ini.</p>
+                    <div>
+                        <label for="judul-ujian" class="block text-sm font-medium text-gray-700 mb-1">Judul Ujian</label>
+                        <input type="text" id="judul-ujian" class="input-field" placeholder="Contoh: STS IPAS Semester 1 Kelas 4A">
+                    </div>
+                </div>
+
+                <div class="card p-6">
+                    <h2 class="text-xl font-semibold mb-4">2. Dokumen Soal & Acuan</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="soal-file" class="block text-sm font-medium text-gray-700 mb-1">Unggah File Soal (.pdf)</label>
+                            <div class="flex items-center">
+                                <label for="soal-file" class="file-input-label">Pilih File</label>
+                                <input type="file" id="soal-file" class="hidden" accept=".pdf">
+                                <span id="soal-filename" class="ml-3 text-sm text-gray-500 truncate">Tidak ada file dipilih</span>
+                            </div>
+                        </div>
+                         <div>
+                            <label for="acuan-file" class="block text-sm font-medium text-gray-700 mb-1">Unggah File Acuan Jawaban (.pdf)</label>
+                             <div class="flex items-center">
+                                <label for="acuan-file" class="file-input-label">Pilih File</label>
+                                <input type="file" id="acuan-file" class="hidden" accept=".pdf">
+                                <span id="acuan-filename" class="ml-3 text-sm text-gray-500 truncate">Tidak ada file dipilih</span>
+                            </div>
+                            <p class="text-xs text-blue-600 mt-1">*Wajib ada rincian poin & Target SOLO.</p>
+                        </div>
+                        <div>
+                            <label for="rubrik-file" class="block text-sm font-medium text-gray-700 mb-1">Unggah File Rubrik Penilaian (.pdf)</label>
+                            <div class="flex items-center">
+                                <label for="rubrik-file" class="file-input-label">Pilih File</label>
+                                <input type="file" id="rubrik-file" class="hidden" accept=".pdf">
+                                <span id="rubrik-filename" class="ml-3 text-sm text-gray-500 truncate">Tidak ada file dipilih</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card p-6">
+                    <h2 class="text-xl font-semibold mb-4">3. Jawaban Murid (Perorangan)</h2>
+                     <div class="space-y-4">
+                        <div>
+                            <label for="jawaban-file" class="block text-sm font-medium text-gray-700 mb-1">Unggah File Jawaban Murid (.pdf)</label>
+                            <p class="text-xs text-gray-500 mb-2">*Pastikan berisi Nama & Kelas.</p>
+                            <div class="flex items-center">
+                                <label for="jawaban-file" class="file-input-label">Pilih File</label>
+                                <input type="file" id="jawaban-file" class="hidden" accept=".pdf">
+                                <span id="jawaban-filename" class="ml-3 text-sm text-gray-500 truncate">Tidak ada file dipilih</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                    <button id="checkBtn" class="btn btn-primary w-full shadow-lg">
+                        <span id="btn-text">Periksa Jawaban Siswa Ini</span>
+                        <div id="btn-loader" class="hidden w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    </button>
+                    <button id="resetBtn" class="btn btn-secondary w-full">Reset Input Siswa</button>
+                </div>
+            </div>
+
+            <!-- Kolom Output Individu -->
+            <div id="output-container" class="hidden">
+                <div class="card p-6 sticky top-8 border-l-4 border-blue-500">
+                    <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">Hasil Analisa Individu</h2>
+                    
+                    <div id="student-info-display" class="mb-4 text-center p-3 bg-gray-100 rounded-lg">
+                        <p class="font-bold text-lg" id="display-nama">Nama: -</p>
+                        <p class="text-gray-600" id="display-kelas">Kelas: -</p>
+                    </div>
+
+                    <div class="text-center mb-6 border-b pb-6">
+                        <h3 class="text-lg font-medium text-gray-600">Nilai Akhir</h3>
+                        <div id="skor" class="text-6xl font-bold text-blue-600 mt-2">...</div>
+                    </div>
+                    
+                    <h4 class="text-lg font-semibold mb-3 text-gray-800">Rincian Umpan Balik</h4>
+                    <div id="detail-analisis-container" class="space-y-4 max-h-[30vh] overflow-y-auto pr-2 text-sm">
+                        <p class="text-gray-500 text-center">Menunggu hasil...</p>
+                    </div>
+                    
+                    <button id="downloadBtn" class="hidden btn btn-success w-full mt-6">Unduh Laporan Individu (.docx)</button>
+                    <div id="error-message" class="hidden mt-4 text-center text-red-600 bg-red-100 p-3 rounded-lg text-sm"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel Analisis Kelas (Global) -->
+        <div class="card p-8 bg-gray-800 text-white mt-8 mb-12">
+            <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                <div>
+                    <h2 class="text-2xl font-bold text-white">Dasbor Analisis Kelas</h2>
+                    <p class="text-gray-400 text-sm mt-1">Menggunakan data tersimpan dari Judul Ujian di atas.</p>
+                </div>
+                <div class="bg-gray-700 px-4 py-2 rounded-lg">
+                    <span class="text-gray-300 text-sm">Data Tersimpan:</span>
+                    <span id="saved-count" class="font-bold text-xl ml-2 text-yellow-400">0</span>
+                    <span class="text-gray-300 text-sm ml-1">Siswa</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <button id="classAnalysisBtn" class="btn btn-warning w-full">
+                    <span>📊 Analisa Kelas (Komprehensif)</span>
+                </button>
+                <button id="itemAnalysisBtn" class="btn btn-warning w-full">
+                    <span>📝 Analisa Butir Soal</span>
+                </button>
+                <button id="clearDataBtn" class="btn btn-danger w-full">
+                    <span>🗑️ Hapus Data Judul Ini</span>
+                </button>
+            </div>
+
+            <!-- Container Hasil Analisis Kelas -->
+            <div id="class-analysis-output" class="hidden mt-8 p-6 bg-white text-gray-800 rounded-lg shadow-xl markdown-body">
+                <!-- Hasil Analisis Kelas akan muncul di sini -->
+            </div>
+             <div id="class-loader" class="hidden mt-8 text-center">
+                <div class="inline-block w-8 h-8 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
+                <p class="mt-2 text-gray-300">Sedang menganalisis data seluruh kelas...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const judulUjianInput = document.getElementById('judul-ujian');
+        const savedCountEl = document.getElementById('saved-count');
+        const soalFileInput = document.getElementById('soal-file');
+        const acuanFileInput = document.getElementById('acuan-file');
+        const rubrikFileInput = document.getElementById('rubrik-file');
+        const jawabanFileInput = document.getElementById('jawaban-file');
+        
+        const soalFilenameEl = document.getElementById('soal-filename');
+        const acuanFilenameEl = document.getElementById('acuan-filename');
+        const rubrikFilenameEl = document.getElementById('rubrik-filename');
+        const jawabanFilenameEl = document.getElementById('jawaban-filename');
+        
+        const checkBtn = document.getElementById('checkBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        
+        const classAnalysisBtn = document.getElementById('classAnalysisBtn');
+        const itemAnalysisBtn = document.getElementById('itemAnalysisBtn');
+        const clearDataBtn = document.getElementById('clearDataBtn');
+        const classAnalysisOutput = document.getElementById('class-analysis-output');
+        const classLoader = document.getElementById('class-loader');
+
+        const outputContainer = document.getElementById('output-container');
+        const skorEl = document.getElementById('skor');
+        const displayNama = document.getElementById('display-nama');
+        const displayKelas = document.getElementById('display-kelas');
+        const detailAnalisisContainer = document.getElementById('detail-analisis-container');
+        
+        const btnText = document.getElementById('btn-text');
+        const btnLoader = document.getElementById('btn-loader');
+        const errorMessageEl = document.getElementById('error-message');
+
+        const API_KEY = ""; // Environment handles key
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`;
+        
+        let latestAnalysisData = null;
+        let latestStudentInfo = { nama: '', kelas: '' };
+        
+        // --- EVENT LISTENERS ---
+        
+        soalFileInput.addEventListener('change', () => updateFilename(soalFileInput, soalFilenameEl));
+        acuanFileInput.addEventListener('change', () => updateFilename(acuanFileInput, acuanFilenameEl));
+        rubrikFileInput.addEventListener('change', () => updateFilename(rubrikFileInput, rubrikFilenameEl));
+        jawabanFileInput.addEventListener('change', () => updateFilename(jawabanFileInput, jawabanFilenameEl));
+        
+        judulUjianInput.addEventListener('input', updateSavedCount);
+        
+        checkBtn.addEventListener('click', handleCheckAnswer);
+        resetBtn.addEventListener('click', handleResetInput);
+        downloadBtn.addEventListener('click', () => {
+             if (latestAnalysisData) {
+                generateDocx(latestAnalysisData, latestAnalysisData.nama_murid, latestAnalysisData.kelas_murid, judulUjianInput.value);
+            }
+        });
+        
+        clearDataBtn.addEventListener('click', handleClearData);
+        classAnalysisBtn.addEventListener('click', () => runBatchAnalysis('class'));
+        itemAnalysisBtn.addEventListener('click', () => runBatchAnalysis('item'));
+
+        // --- HELPER FUNCTIONS ---
+
+        function updateFilename(input, display) {
+            display.textContent = input.files.length > 0 ? input.files[0].name : 'Tidak ada file dipilih';
+        }
+
+        function getStorageKey() {
+            const title = judulUjianInput.value.trim();
+            if (!title) return null;
+            return `essay_data_${title.replace(/\s+/g, '_').toLowerCase()}`;
+        }
+
+        function updateSavedCount() {
+            const key = getStorageKey();
+            if (key) {
+                const data = JSON.parse(localStorage.getItem(key) || '[]');
+                savedCountEl.textContent = data.length;
+            } else {
+                savedCountEl.textContent = '0';
+            }
+        }
+
+        function saveDataToLocal(data) {
+            const key = getStorageKey();
+            if (!key) return; // Should be validated before calling
+            
+            let storedData = JSON.parse(localStorage.getItem(key) || '[]');
+            // Optional: Remove existing entry for same student name to allow re-grading
+            storedData = storedData.filter(item => item.nama_murid !== data.nama_murid);
+            storedData.push(data);
+            localStorage.setItem(key, JSON.stringify(storedData));
+            updateSavedCount();
+        }
+
+        function handleClearData() {
+            const key = getStorageKey();
+            if (!key) { alert("Masukkan Judul Ujian dulu."); return; }
+            if (confirm(`Apakah Anda yakin ingin menghapus semua data tersimpan untuk ujian "${judulUjianInput.value}"?`)) {
+                localStorage.removeItem(key);
+                updateSavedCount();
+                classAnalysisOutput.classList.add('hidden');
+                alert("Data berhasil dihapus.");
+            }
+        }
+
+        function handleResetInput() {
+            jawabanFileInput.value = '';
+            jawabanFilenameEl.textContent = 'Tidak ada file dipilih';
+            outputContainer.classList.add('hidden');
+            downloadBtn.classList.add('hidden');
+            latestAnalysisData = null;
+        }
+
+        async function extractTextFromPdf(file) {
+            if (!file) return null;
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+                let fullText = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    fullText += textContent.items.map(item => item.str).join(' ') + '\n';
+                }
+                return fullText;
+            } catch (error) {
+                console.error('Error reading PDF:', error);
+                showError(`Gagal membaca file PDF: ${file.name}.`);
+                return null;
+            }
+        }
+
+        // --- CORE LOGIC: SINGLE STUDENT ANALYSIS ---
+
+        async function handleCheckAnswer() {
+            const judul = judulUjianInput.value.trim();
+            if (!judul) { showError("Harap isi 'Judul Ujian' terlebih dahulu."); return; }
+
+            const soalFile = soalFileInput.files[0];
+            const acuanFile = acuanFileInput.files[0];
+            const rubrikFile = rubrikFileInput.files[0];
+            const jawabanFile = jawabanFileInput.files[0];
+
+            if (!soalFile || !acuanFile || !rubrikFile || !jawabanFile) {
+                showError("Harap unggah semua file (Soal, Acuan, Rubrik, Jawaban).");
+                return;
+            }
+
+            setLoading(true);
+            errorMessageEl.classList.add('hidden');
+            downloadBtn.classList.add('hidden');
+            outputContainer.classList.remove('hidden');
+            classAnalysisOutput.classList.add('hidden'); // Hide class analysis if open
+            skorEl.textContent = '...';
+            displayNama.textContent = 'Nama: ...';
+            displayKelas.textContent = 'Kelas: ...';
+            detailAnalisisContainer.innerHTML = '<p class="text-gray-500 text-center">Menganalisis jawaban...</p>';
+
+            const [soal, acuan, rubrik, jawaban] = await Promise.all([
+                extractTextFromPdf(soalFile),
+                extractTextFromPdf(acuanFile),
+                extractTextFromPdf(rubrikFile),
+                extractTextFromPdf(jawabanFile),
+            ]);
+
+            if (!soal || !acuan || !jawaban || !rubrik) {
+                setLoading(false);
+                return;
+            }
+
+            const systemPrompt = `Anda adalah asisten ahli penilaian pendidikan.`;
+            const userPrompt = `
+                Analisis jawaban murid.
+                Konteks Ujian: ${judul}
+
+                --- SOAL ---
+                ${soal}
+
+                --- RUBRIK ---
+                ${rubrik}
+
+                --- ACUAN JAWABAN (STRICT) ---
+                ${acuan}
+                *Dokumen ini sumber kebenaran: Poin Maksimal, Rincian Poin, Target SOLO.*
+
+                --- JAWABAN MURID ---
+                ${jawaban}
+
+                --- TUGAS ---
+                1. Ekstrak Nama & Kelas dari file Jawaban.
+                2. FOKUS HANYA SOAL NOMOR 1, 2, 3, 4, 7.
+                3. Penilaian (STRICT):
+                   - Jumlahkan poin murid berdasarkan kecocokan dengan "Rincian Poin" di Acuan.
+                   - Jangan melebihi poin maksimal.
+                4. Umpan Balik (Gaya Guru):
+                   - Jika poin < maksimal: Jelaskan bagian mana yang kurang (merujuk rincian poin) dan cara memperbaikinya.
+                   - Level SOLO: Tentukan level capaian murid.
+                   - Target SOLO: Bandingkan dengan target di acuan.
+                   - Saran: Jika di bawah target, beri langkah konkret. Jika tercapai, beri pujian.
+                5. Hitung Skor: (Total Poin Didapat / Total Poin Maksimal 1,2,3,4,7) * 100.
+
+                Output JSON (NO Markdown):
+                {
+                  "nama_murid": "...",
+                  "kelas_murid": "...",
+                  "skor_total": number,
+                  "analisis_per_soal": [
+                    {
+                      "nomor_soal": 1,
+                      "skor_soal": number,
+                      "poin_maksimal": number,
+                      "level_solo_dicapai": "string (misal: Multi-struktural)",
+                      "target_solo": "string",
+                      "umpan_balik_guru": "string"
+                    }
+                  ]
+                }
+            `;
+            
+            try {
+                const result = await callGemini(systemPrompt, userPrompt);
+                const data = JSON.parse(result);
+                
+                // Add exam title context to data
+                data.judul_ujian = judul;
+                
+                displayResults(data);
+                saveDataToLocal(data); // Auto-save
+                
+                latestAnalysisData = data;
+                downloadBtn.classList.remove('hidden');
+
+            } catch (error) {
+                console.error("Error:", error);
+                showError("Gagal menganalisis. Coba lagi.");
+                skorEl.textContent = 'N/A';
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // --- CORE LOGIC: CLASS & ITEM ANALYSIS ---
+
+        async function runBatchAnalysis(type) {
+            const key = getStorageKey();
+            if (!key) { alert("Masukkan Judul Ujian."); return; }
+            
+            const storedData = JSON.parse(localStorage.getItem(key) || '[]');
+            if (storedData.length === 0) {
+                alert("Belum ada data siswa tersimpan untuk ujian ini.");
+                return;
+            }
+
+            classAnalysisOutput.classList.add('hidden');
+            classLoader.classList.remove('hidden');
+            
+            // Prepare consolidated data to save tokens (remove full text feedback, keep scores/stats)
+            const summaryData = storedData.map(s => ({
+                nama: s.nama_murid,
+                skor_total: s.skor_total,
+                detail: s.analisis_per_soal.map(q => ({
+                    no: q.nomor_soal,
+                    skor: q.skor_soal,
+                    max: q.poin_maksimal,
+                    level_solo: q.level_solo_dicapai
+                }))
+            }));
+
+            const systemPrompt = `Anda adalah konsultan analisis data pendidikan.`;
+            let userPrompt = "";
+
+            if (type === 'class') {
+                userPrompt = `
+                    Lakukan **ANALISA KELAS** untuk Judul Ujian: "${judulUjianInput.value}".
+                    Data Hasil Siswa (JSON): ${JSON.stringify(summaryData)}
+
+                    Tugas:
+                    1. Identifikasi Materi/Soal yang paling banyak siswa GAGAL (nilai rendah).
+                    2. Identifikasi Materi/Soal yang sudah DIKUASAI (nilai tinggi).
+                    3. Untuk SETIAP NOMOR SOAL (1, 2, 3, 4, 7), jelaskan kepada guru:
+                       - Pemahaman apa yang secara umum belum dikuasai siswa di nomor ini?
+                       - Apa pola kesalahan umum siswa?
+                    
+                    Berikan output dalam format Markdown yang rapi. Gunakan headings, bullet points, dan bold text.
+                `;
+            } else {
+                userPrompt = `
+                    Lakukan **ANALISA BUTIR SOAL** untuk Judul Ujian: "${judulUjianInput.value}".
+                    Data Hasil Siswa (JSON): ${JSON.stringify(summaryData)}
+
+                    Tugas:
+                    Untuk SETIAP NOMOR SOAL (1, 2, 3, 4, 7), lakukan analisis berikut:
+                    1. **Tingkat Kesulitan**: (Mudah/Sedang/Sukar) berdasarkan rata-rata skor.
+                    2. **Rekomendasi**: Apakah soal ini perlu direvisi, dipertahankan, atau dibuang?
+                    3. **Analisis SOLO**: Seberapa banyak siswa yang mencapai level berpikir tingkat tinggi (Relasional/Abstrak) pada soal ini?
+                    
+                    Berikan output dalam format Markdown yang rapi.
+                `;
+            }
+
+            try {
+                // Not asking for JSON here, but Markdown text
+                const textResult = await callGeminiText(systemPrompt, userPrompt);
+                classAnalysisOutput.innerHTML = marked.parse(textResult);
+                classAnalysisOutput.classList.remove('hidden');
+                
+                // Scroll to analysis
+                classAnalysisOutput.scrollIntoView({ behavior: 'smooth' });
+
+            } catch (error) {
+                console.error("Batch Error:", error);
+                alert("Gagal melakukan analisis kelas/butir soal.");
+            } finally {
+                classLoader.classList.add('hidden');
+            }
+        }
+
+        // --- API CALLS ---
+
+        async function callGemini(sys, user) {
+            const payload = {
+                contents: [{ parts: [{ text: user }] }],
+                systemInstruction: { parts: [{ text: sys }] },
+                generationConfig: { responseMimeType: "application/json" }
+            };
+            const res = await fetchWithRetry(API_URL, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            });
+            const json = await res.json();
+            return json.candidates?.[0]?.content?.parts?.[0]?.text;
+        }
+
+        async function callGeminiText(sys, user) {
+            const payload = {
+                contents: [{ parts: [{ text: user }] }],
+                systemInstruction: { parts: [{ text: sys }] }
+                // No JSON mime type enforcement
+            };
+            const res = await fetchWithRetry(API_URL, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            });
+            const json = await res.json();
+            return json.candidates?.[0]?.content?.parts?.[0]?.text;
+        }
+
+        async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.ok) return response;
+                    if (response.status >= 400 && response.status < 500) throw new Error(`Client error: ${response.status}`);
+                } catch (error) {
+                    if (i === retries - 1) throw error;
+                    await new Promise(res => setTimeout(res, delay * (i + 1)));
+                }
+            }
+        }
+
+        // --- DISPLAY & DOCX ---
+
+        function displayResults(data) {
+            skorEl.textContent = data.skor_total !== undefined ? data.skor_total : 'N/A';
+            displayNama.textContent = `Nama: ${data.nama_murid || '-'}`;
+            displayKelas.textContent = `Kelas: ${data.kelas_murid || '-'}`;
+            
+            detailAnalisisContainer.innerHTML = ''; 
+
+            if (data.analisis_per_soal && data.analisis_per_soal.length > 0) {
+                data.analisis_per_soal.forEach(item => {
+                    const itemContainer = document.createElement('div');
+                    itemContainer.className = 'p-4 border rounded-lg bg-gray-50 mb-3 shadow-sm';
+
+                    // Determine badge color based on score
+                    const isPerfect = item.skor_soal === item.poin_maksimal;
+                    const badgeClass = isPerfect ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-800';
+
+                    itemContainer.innerHTML = `
+                        <div class="flex justify-between items-start mb-2 border-b pb-2">
+                            <h5 class="font-bold text-gray-800">Soal No. ${item.nomor_soal}</h5>
+                            <span class="text-sm font-bold ${badgeClass} px-3 py-1 rounded-full">
+                                Skor: ${item.skor_soal} / ${item.poin_maksimal}
+                            </span>
+                        </div>
+                        <div class="text-sm text-gray-700 space-y-2">
+                             <p><span class="font-semibold text-blue-600">Level SOLO Capaian:</span> ${item.level_solo_dicapai || '-'}</p>
+                             <div class="bg-white p-3 rounded border border-gray-200 mt-2">
+                                <p class="font-semibold text-gray-900 mb-1">👩‍🏫 Umpan Balik Guru:</p>
+                                <p class="italic">"${item.umpan_balik_guru || '-'}"</p>
+                             </div>
+                        </div>
+                    `;
+                    detailAnalisisContainer.appendChild(itemContainer);
+                });
+            } else {
+                detailAnalisisContainer.innerHTML = '<p class="text-gray-500 text-center">Data tidak ditemukan.</p>';
+            }
+        }
+
+        async function generateDocx(data, nama, kelas, judul) {
+            const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = docx;
+
+            const doc = new Document({
+                sections: [{
+                    children: [
+                        new Paragraph({
+                            text: `Laporan Hasil Penilaian - ${judul}`,
+                            heading: HeadingLevel.TITLE,
+                            alignment: AlignmentType.CENTER,
+                        }),
+                        new Paragraph({ text: "" }),
+                        new Paragraph({ children: [ new TextRun({ text: "Nama Murid\t: ", bold: true }), new TextRun(nama || "-") ] }),
+                        new Paragraph({ children: [ new TextRun({ text: "Kelas\t\t: ", bold: true }), new TextRun(kelas || "-") ] }),
+                        new Paragraph({ text: "" }),
+                        new Paragraph({ children: [ new TextRun({ text: "Nilai Akhir:", bold: true, size: 28 }) ], alignment: AlignmentType.CENTER }),
+                        new Paragraph({ children: [ new TextRun({ text: String(data.skor_total), bold: true, size: 56, color: "2563EB" }) ], alignment: AlignmentType.CENTER }),
+                        new Paragraph({ text: "" }),
+                        new Paragraph({
+                            text: "Rincian Umpan Balik per Soal",
+                            heading: HeadingLevel.HEADING_1,
+                            border: { bottom: { color: "auto", space: 1, value: "single", size: 6 } },
+                        }),
+                        new Paragraph({ text: "" }),
+                        ...data.analisis_per_soal.flatMap(item => [
+                            new Paragraph({ children: [ new TextRun({ text: `Soal Nomor ${item.nomor_soal}`, bold: true, size: 28 }) ] }),
+                            new Paragraph({ children: [ new TextRun({ text: `Poin: ${item.skor_soal} / ${item.poin_maksimal}`, bold: true }) ] }),
+                            new Paragraph({ children: [ new TextRun({ text: `Level SOLO: ${item.level_solo_dicapai}`, italics: true }) ] }),
+                            new Paragraph({ children: [ new TextRun({ text: "Umpan Balik Guru: ", bold: true }), new TextRun(item.umpan_balik_guru) ] }),
+                            new Paragraph({ text: "" }),
+                        ]),
+                         new Paragraph({ text: "" }), 
+                        new Paragraph({
+                            text: "Glosarium Taksonomi SOLO",
+                            heading: HeadingLevel.HEADING_2,
+                            border: { bottom: { color: "auto", space: 1, value: "single", size: 4 } },
+                        }),
+                        new Paragraph({ children: [ new TextRun({ text: "Pra-struktural: ", bold: true }), new TextRun("Murid belum memahami poin utama dan memberikan jawaban yang tidak relevan.") ] }),
+                        new Paragraph({ children: [ new TextRun({ text: "Uni-struktural: ", bold: true }), new TextRun("Murid fokus pada satu aspek relevan saja dari tugas atau pertanyaan.") ] }),
+                        new Paragraph({ children: [ new TextRun({ text: "Multi-struktural: ", bold: true }), new TextRun("Murid dapat menyebutkan beberapa aspek relevan, namun belum mengaitkannya.") ] }),
+                        new Paragraph({ children: [ new TextRun({ text: "Relasional: ", bold: true }), new TextRun("Murid dapat mengaitkan berbagai aspek menjadi satu struktur yang koheren dan bermakna.") ] }),
+                        new Paragraph({ children: [ new TextRun({ text: "Abstraksi Diperluas: ", bold: true }), new TextRun("Murid dapat menggeneralisasi struktur ke level yang lebih abstrak.") ] }),
+                    ],
+                }],
+            });
+
+            try {
+                const blob = await Packer.toBlob(doc);
+                const safeNama = nama ? nama.replace(/ /g, "_") : "murid";
+                saveAs(blob, `Laporan_${safeNama}.docx`);
+            } catch (e) {
+                console.error("Error DOCX:", e);
+                alert("Gagal membuat DOCX.");
+            }
+        }
+
+        function setLoading(isLoading) {
+            if (isLoading) {
+                checkBtn.disabled = true;
+                btnText.classList.add('hidden');
+                btnLoader.classList.remove('hidden');
+            } else {
+                checkBtn.disabled = false;
+                btnText.classList.remove('hidden');
+                btnLoader.classList.add('hidden');
+            }
+        }
+        
+        function showError(message) {
+            errorMessageEl.textContent = message;
+            errorMessageEl.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
